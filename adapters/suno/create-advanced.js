@@ -240,13 +240,22 @@ cli({
           }
           return true;
         });
-        if (visible.length !== 2) {
-          return JSON.stringify({ ok: false, err: 'expected 2 visible textareas (Advanced mode), got ' + visible.length + ': ' + visible.map(t => t.placeholder || '').join('|') });
+        // Suno may show 3+ visible textareas in Advanced mode (lyrics, styles, AI-lyrics, etc.)
+        // Locate by placeholder keywords instead of hardcoding count/order.
+        const lyricsTa = visible.find(t => {
+          const ph = (t.placeholder || '').toLowerCase();
+          return ph.includes('lyrics') || ph.includes('instrumental');
+        });
+        const aiLyricsTa = visible.find(t => {
+          const ph = (t.placeholder || '').toLowerCase();
+          return ph.includes('describe the lyrics') || ph.includes('write new lyrics') || ph.includes('theme or topic');
+        });
+        const stylesTa = visible.find(t => t !== lyricsTa && t !== aiLyricsTa);
+        if (!lyricsTa) {
+          return JSON.stringify({ ok: false, err: 'lyrics textarea not found among ' + visible.length + ' visible textareas; placeholders: ' + visible.map(t => t.placeholder || '').join(' | ') });
         }
-        const [lyricsTa, stylesTa] = visible;
-        const lp = (lyricsTa.placeholder || '').toLowerCase();
-        if (!lp.includes('lyrics') && !lp.includes('instrumental')) {
-          return JSON.stringify({ ok: false, err: 'first visible textarea does not look like the lyrics field; placeholder=' + lyricsTa.placeholder });
+        if (!stylesTa) {
+          return JSON.stringify({ ok: false, err: 'styles textarea not found among ' + visible.length + ' visible textareas; placeholders: ' + visible.map(t => t.placeholder || '').join(' | ') });
         }
         const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
         setter.call(lyricsTa, ${lyricsJson});

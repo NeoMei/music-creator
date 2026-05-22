@@ -165,8 +165,8 @@ cli({
     // ── 6. Navigate to Library and find the song's "More options" button ──
     console.log('[generate-wav] Looking for song in Library...');
     
-    // Wait for songs to load
-    await page.wait(3);
+    // Wait longer for Library page to fully load (React SPA may take time)
+    await page.wait(10);
     
     // Find the song's "More options" button by matching clip ID position
     const moreBtnResult = await page.evaluate(`
@@ -184,7 +184,24 @@ cli({
         }
         
         if (!targetLink) {
-          return JSON.stringify({ ok: false, err: 'Song not found in Library' });
+          // Strategy 2: Find by any element containing clip ID text
+          const allElements = document.querySelectorAll('*');
+          for (const el of allElements) {
+            if (el.textContent && el.textContent.includes(clipId)) {
+              let card = el.closest('[data-testid], [role="listitem"], article, .card');
+              if (!card) card = el.parentElement?.parentElement?.parentElement;
+              if (card) {
+                targetLink = card.querySelector('a') || card;
+                break;
+              }
+            }
+          }
+        }
+        
+        if (!targetLink) {
+          // Debug: report what we found
+          const allHrefs = Array.from(document.querySelectorAll('a[href*="/song/"]')).map(a => a.href).slice(0, 5);
+          return JSON.stringify({ ok: false, err: 'Song not found in Library', debug: { sampleHrefs: allHrefs } });
         }
         
         // Get the Y position of the song
@@ -221,9 +238,10 @@ cli({
     `);
     const findResult = JSON.parse(moreBtnResult);
     if (!findResult.ok) {
-      console.warn('[generate-wav] Find song failed:', findResult);
-      throw new CliError('UI_ERROR', findResult.err);
-    }
+      console.warn('[generate-wav] Find song in Library failed:', findResult);
+      // Fallback: skip Library UI navigation, try direct CDN download
+      console.log('[generate-wav] Library not available, skipping UI navigation...');
+    } else {
     
     // Click using proper mouse events for React compatibility
     const clickResult = await page.evaluate(`
@@ -410,6 +428,7 @@ cli({
     }
     
     console.log('[generate-wav] Clicked Download File');
+    }
     
     // ── 10. Wait for generation and check if WAV is available ──
     console.log('[generate-wav] Waiting for WAV generation...');
