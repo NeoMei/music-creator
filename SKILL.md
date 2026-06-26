@@ -39,6 +39,8 @@ allowed-tools: Bash(opencli:*), Bash(ocli:*), Read, Edit, Write
 4. **浏览器操作必须走 CloakBrowser + opencli 工具链**，禁止直接使用桌面 Chrome 或 Playwright。
    详见 `skills/aily-browser/SKILL.md`。
 
+5. **发布脚本依赖 `playwright-core`**：`scripts/publish-douyin.cjs` 用它经 CDP 驱动抖音表单。需 `npm i -g playwright-core`，或确保 aily-browser skill 的 node_modules 存在（fallback）。`./install.sh` 会检测。
+
 ---
 
 ## 工作流
