@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # Music Creator — OpenCLI Adapters 安装脚本
+# 把 suno / douyin-music adapter 装进 opencli 的 clis 目录。
 
 set -e
 
@@ -8,111 +9,163 @@ set -e
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+ok()   { echo -e "${GREEN}✓ $1${NC}"; }
+warn() { echo -e "${YELLOW}⚠ $1${NC}"; }
+err()  { echo -e "${RED}✗ $1${NC}"; }
 
 echo -e "${GREEN}Music Creator — OpenCLI Adapters Installer${NC}"
 echo "=========================================="
 echo ""
 
-# Check if OpenCLI is installed
-if ! command -v opencli &> /dev/null; then
-    echo -e "${RED}Error: OpenCLI is not installed.${NC}"
-    echo "Please install OpenCLI first:"
-    echo "  npm install -g @jackwener/opencli"
+# ── 1. Node.js ≥ 18 ──
+if ! command -v node &> /dev/null; then
+    err "Node.js is not installed."
+    echo "  Install from https://nodejs.org/ (≥ 18 required)."
     exit 1
 fi
+NODE_MAJOR=$(node -v 2>/dev/null | sed -E 's/^v([0-9]+)\..*/\1/')
+if [ -z "$NODE_MAJOR" ] || [ "$NODE_MAJOR" -lt 18 ]; then
+    err "Node.js ≥ 18 required, got $(node -v 2>/dev/null || 'unknown')."
+    exit 1
+fi
+ok "Node.js $(node -v)"
 
-# Check OpenCLI version
-OPENCLI_VERSION=$(opencli --version 2>/dev/null | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+' | head -1)
+# ── 2. OpenCLI ──
+if ! command -v opencli &> /dev/null; then
+    err "OpenCLI is not installed."
+    echo "  Install first:  npm install -g @jackwener/opencli"
+    exit 1
+fi
+OPENCLI_VERSION=$(opencli --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
 if [ -z "$OPENCLI_VERSION" ]; then
-    echo -e "${YELLOW}Warning: Could not determine OpenCLI version.${NC}"
+    warn "Could not determine OpenCLI version (continuing anyway)."
 else
-    echo -e "${GREEN}✓ OpenCLI version: $OPENCLI_VERSION${NC}"
+    ok "OpenCLI $OPENCLI_VERSION"
 fi
 
-# Determine target directory
+# ── 3. Chrome (opencli drives it in headed mode) ──
+if command -v google-chrome &> /dev/null \
+   || command -v google-chrome-stable &> /dev/null \
+   || command -v chromium &> /dev/null \
+   || command -v chromium-browser &> /dev/null \
+   || [ -d "/Applications/Google Chrome.app" ]; then
+    ok "Google Chrome found"
+else
+    warn "Google Chrome not detected in PATH."
+    echo "  opencli drives Chrome in headed mode — install it from https://www.google.com/chrome/"
+    echo "  (continuing install, but runtime commands will fail without Chrome)"
+fi
+
+# ── 4. jq (optional, used by suno-batch-download.sh) ──
+if command -v jq &> /dev/null; then
+    ok "jq $(jq --version 2>/dev/null)"
+else
+    warn "jq not found — suno-batch-download.sh will fall back to grep parsing."
+    echo "  Recommended:  macOS 'brew install jq'  /  Debian 'sudo apt install jq'"
+fi
+
+# ── 5. Determine target clis directory ──
 if [ -n "$OPENCLI_HOME" ]; then
     TARGET_DIR="$OPENCLI_HOME/clis"
 elif [ -d "$HOME/.opencli/clis" ]; then
     TARGET_DIR="$HOME/.opencli/clis"
 else
-    echo -e "${RED}Error: OpenCLI clis directory not found.${NC}"
-    echo "Expected: ~/.opencli/clis/"
+    err "OpenCLI clis directory not found."
+    echo "  Expected: ~/.opencli/clis/  (run 'opencli doctor' to diagnose)"
     exit 1
 fi
-
-echo "Target directory: $TARGET_DIR"
-
-# Create directories if they don't exist
-mkdir -p "$TARGET_DIR/suno"
-mkdir -p "$TARGET_DIR/douyin-music"
+echo ""
+echo -e "${BLUE}Target:${NC} $TARGET_DIR"
 
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Check if adapters directory exists
 if [ ! -d "$SCRIPT_DIR/adapters" ]; then
-    echo -e "${RED}Error: adapters/ directory not found.${NC}"
-    echo "Please run this script from the music-creator repository root."
+    err "adapters/ directory not found."
+    echo "  Run this script from the music-creator repository root."
     exit 1
 fi
 
-# Copy Suno adapters
+mkdir -p "$TARGET_DIR/suno" "$TARGET_DIR/douyin-music"
+
+# ── 6. Backup any pre-existing files that would be overwritten ──
+# music-creator ships its own suno/download.js and list.js, which share names
+# with the adapters bundled inside OpenCLI itself. Back up the originals so the
+# install is reversible.
+TS="$(date +%Y%m%d-%H%M%S)"
+BACKUP_DIR="$TARGET_DIR/suno/.backup-pre-music-creator-$TS"
+OVERWRITTEN=""
+for src in "$SCRIPT_DIR/adapters/suno/"*.js; do
+    [ -f "$src" ] || continue
+    name="$(basename "$src")"
+    dest="$TARGET_DIR/suno/$name"
+    if [ -f "$dest" ]; then
+        [ -d "$BACKUP_DIR" ] || mkdir -p "$BACKUP_DIR"
+        cp "$dest" "$BACKUP_DIR/"
+        OVERWRITTEN="$OVERWRITTEN $name"
+    fi
+done
+
+# ── 7. Copy adapters ──
 echo ""
 echo "Installing Suno adapters..."
 cp "$SCRIPT_DIR/adapters/suno/"*.js "$TARGET_DIR/suno/"
-echo -e "${GREEN}✓ Suno adapters installed${NC}"
+ok "Suno adapters installed"
 
-# Copy Douyin Music adapters
 echo ""
 echo "Installing Douyin Music adapters..."
 cp "$SCRIPT_DIR/adapters/douyin-music/"*.js "$TARGET_DIR/douyin-music/"
-echo -e "${GREEN}✓ Douyin Music adapters installed${NC}"
+ok "Douyin Music adapters installed"
 
-# Verify installation
+if [ -n "$OVERWRITTEN" ]; then
+    echo ""
+    warn "Overwrote existing adapter(s):$OVERWRITTEN"
+    echo "  Backed up to: $BACKUP_DIR"
+    echo "  Restore with:  cp \"$BACKUP_DIR\"/*.js \"$TARGET_DIR/suno/\""
+fi
+
+# ── 8. Verify adapters load ──
 echo ""
 echo "Verifying installation..."
+FAIL=0
+check_cmd() {
+    local label="$1"; shift
+    if opencli "$@" --help >/dev/null 2>&1; then
+        ok "$label"
+    else
+        warn "$label — failed to load"
+        FAIL=1
+    fi
+}
+check_cmd "suno create-advanced"  suno create-advanced
+check_cmd "suno generate-wav"     suno generate-wav
+check_cmd "suno download"         suno download
+check_cmd "suno list"             suno list
+check_cmd "douyin-music publish"  douyin-music publish
 
-# Check if adapters can be loaded
-if opencli suno create-advanced --help >/dev/null 2>&1; then
-    echo -e "${GREEN}✓ suno create-advanced — OK${NC}"
-else
-    echo -e "${YELLOW}⚠ suno create-advanced — failed to load${NC}"
-fi
-
-if opencli suno generate-wav --help >/dev/null 2>&1; then
-    echo -e "${GREEN}✓ suno generate-wav — OK${NC}"
-else
-    echo -e "${YELLOW}⚠ suno generate-wav — failed to load${NC}"
-fi
-
-if opencli suno download --help >/dev/null 2>&1; then
-    echo -e "${GREEN}✓ suno download — OK${NC}"
-else
-    echo -e "${YELLOW}⚠ suno download — failed to load${NC}"
-fi
-
-if opencli douyin-music publish --help >/dev/null 2>&1; then
-    echo -e "${GREEN}✓ douyin-music publish — OK${NC}"
-else
-    echo -e "${YELLOW}⚠ douyin-music publish — failed to load${NC}"
-fi
-
-# Set environment variable hint
+# ── 9. Next steps ──
 echo ""
 echo "=========================================="
-echo -e "${GREEN}Installation complete!${NC}"
+if [ "$FAIL" -eq 0 ]; then
+    ok "Installation complete!"
+else
+    warn "Installation finished, but some adapters failed to load."
+    echo "  Run 'opencli doctor' to diagnose."
+fi
 echo ""
-echo "Next steps:"
-echo "1. Ensure Chrome is running and logged into:"
-echo "   - suno.com (Premier subscription required for WAV)"
-echo "   - music.douyin.com (creator account required)"
+echo "Before first use:"
+echo "  1. Log in to these sites in Chrome (opencli reuses your default profile):"
+echo "     - suno.com  (Premier subscription required to generate WAV)"
+echo "     - music.douyin.com  (creator account required to publish)"
 echo ""
-echo "2. Set environment variable (add to ~/.bashrc or ~/.zshrc):"
-echo "   export OPENCLI_BROWSER_COMMAND_TIMEOUT=600"
+echo "  2. Set timeout (Suno generation takes 3-7 min):"
+echo "     export OPENCLI_BROWSER_COMMAND_TIMEOUT=600"
+echo "     # add to ~/.bashrc or ~/.zshrc to persist"
 echo ""
-echo "3. Test with:"
-echo "   opencli suno create-advanced --help"
-echo "   opencli douyin-music publish --help"
+echo "  3. Smoke test:"
+echo "     opencli suno list --limit 5"
 echo ""
-echo "See README.md for detailed usage."
+echo "See README.md for the full workflow."

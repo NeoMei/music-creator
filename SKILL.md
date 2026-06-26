@@ -22,6 +22,8 @@ allowed-tools: Bash(opencli:*), Read, Edit, Write
 
 ## 前置条件
 
+> 假设 adapter 已按 [README 安装章节](README.md#安装) 安装并验证通过（`opencli suno create-advanced --help` 能正常打印帮助）。若命令不存在，先在仓库根目录跑 `./install.sh`。
+
 1. **Chrome 浏览器已登录**相关网站：
    - Suno (suno.com) — 需要 Premier 订阅才能生成 WAV
    - 抖音音乐开放平台 (music.douyin.com) — 需要创作者账号
