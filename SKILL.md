@@ -4,7 +4,7 @@ description: Suno 歌曲创作完整工作流：生成歌曲 → 下载 WAV → 
 allowed-tools: Bash(opencli:*), Read, Edit, Write
 ---
 
-# Suno 歌曲创作完整工作流
+# Music Creator — Suno 歌曲创作到发布完整工作流
 
 本 skill 覆盖从歌曲生成到发布的完整链路：
 
@@ -22,9 +22,11 @@ allowed-tools: Bash(opencli:*), Read, Edit, Write
 
 ## 前置条件
 
-1. **Chrome 浏览器保持开启**，且已登录：
+1. **Chrome 浏览器已登录**相关网站：
    - Suno (suno.com) — 需要 Premier 订阅才能生成 WAV
    - 抖音音乐开放平台 (music.douyin.com) — 需要创作者账号
+   
+   > **注意**：opencli 会自动启动 Chrome（有头模式）。如果 Chrome 未运行，首次执行命令时会自动启动。系统会复用你的默认 Chrome profile，所以只要之前登录过，登录状态会保留。如果看到登录错误，请先在 Chrome 中手动登录对应网站。
 
 2. **环境变量设置**（Suno 生成需要 3-7 分钟）：
    ```bash
@@ -60,6 +62,8 @@ OPENCLI_BROWSER_COMMAND_TIMEOUT=600 opencli suno create-advanced \
 | `--vocal-gender` | 否 | `male` / `female` |
 | `--lyrics-mode` | 否 | `manual`（手动分段）/ `auto`（自动分段） |
 | `--instrumental` | 否 | 纯音乐模式（与 `--lyrics` 互斥） |
+| `--weirdness` | 否 | 怪异度 0-100 |
+| `--style-influence` | 否 | 风格影响度 0-100 |
 
 #### 中文处理
 
@@ -150,35 +154,47 @@ opencli suno generate-wav <clip-id>
 
 ```bash
 opencli douyin-music publish \
-  --audio-file </path/to/song.wav> \
+  --audio </path/to/song.wav> \
+  --cover </path/to/cover.jpeg> \
   --title '<歌曲标题>' \
+  --lyrics '<歌词文本>' \
   --artist '<表演者>' \
-  --lyrics-file </path/to/lyrics.txt> \
-  --cover-file </path/to/cover.jpeg> \
   --ai-tools Suno \
-  --music-type original
+  --music-type 原创
 ```
 
 #### 参数说明
 
 | 参数 | 必填 | 说明 |
 |------|------|------|
-| `--audio-file` | 是 | WAV 音频文件路径（无损格式） |
+| `--audio` | 是 | WAV 音频文件本地路径（无损格式） |
+| `--cover` | 是 | 封面图片本地路径（jpg/png，分辨率 ≥ 1440×1440） |
 | `--title` | 是 | 歌曲标题 |
-| `--artist` | 是 | 表演者/歌手名称 |
-| `--lyrics-file` | 否 | 歌词文件路径（.txt 或 .lrc） |
-| `--cover-file` | 否 | 封面图片路径（.jpeg/.jpg/.png） |
-| `--ai-tools` | 否 | 使用的 AI 工具：`Suno` / `Udio` / `天音` / `海绵音乐` / `腾讯启明星` / `天工AI` / `Mureka` / `其他`。Suno 作品填 `Suno` |
-| `--music-type` | 否 | 音乐类型：`original`（原创）/ `original-instrumental`（原创伴奏）/ `cover`（翻唱）/ `remix`（Remix）。默认 `original` |
-| `--album-name` | 否 | 专辑名称 |
+| `--lyrics` | 否 | 歌词文本内容（直接粘贴，不是文件路径） |
+| `--artist` | 否 | 表演者/歌手名称 |
+| `--lyricist` | 否 | 词作者 |
+| `--composer` | 否 | 曲作者 |
+| `--ai-tools` | 否 | 使用的 AI 工具：`Suno` / `Udio` / `天音` 等。默认 `Suno` |
+| `--music-type` | 否 | 音乐类型：`原创` / `原创伴奏` / `翻唱` / `Remix`。默认 `原创` |
+| `--album` | 否 | 专辑名称 |
 | `--album-artist` | 否 | 专辑歌手 |
-| `--album-cover` | 否 | 专辑封面 |
-| `--label` | 否 | 厂牌/唱片公司 |
-| `--release-date` | 否 | 期望发行时间（YYYY-MM-DD） |
+| `--record-company` | 否 | 所属厂牌/唱片公司 |
+| `--release-date` | 否 | 期望发行时间（格式：YYYY-MM-DD） |
 | `--already-released` | 否 | 是否已发行：`true` / `false`。默认 `false` |
-| `--clip-file` | 否 | 歌曲片段文件（用于试听） |
-| `--edit-file` | 否 | 剪辑版文件 |
-| `--auth-file` | 否 | 授权证明文件 |
+| `--license-proof` | 否 | 授权证明文件路径（zip/jpg/png/pdf） |
+| `--dry-run` | 否 | 只填写表单不上传提交（测试用）。默认 `false` |
+
+#### 歌词参数用法
+
+`--lyrics` 直接传歌词文本（不是文件路径）：
+
+```bash
+# ✅ 正确：直接传歌词内容
+--lyrics '[Verse]\n两棵树在风雨里\n长成了彼此的形状'
+
+# 或者从文件读取
+--lyrics "$(cat ~/Music/lyrics.txt)"
+```
 
 #### 发布页面自动填写
 
@@ -215,13 +231,13 @@ opencli suno generate-wav 45fdb007-bcd4-485f-9a7c-4b38f8d96324 \
 
 # Step 3: 发布到抖音音乐
 opencli douyin-music publish \
-  --audio-file ~/Music/两棵树_45fdb007-bcd4-485f-9a7c-4b38f8d96324.wav \
+  --audio ~/Music/两棵树_45fdb007-bcd4-485f-9a7c-4b38f8d96324.wav \
+  --cover ~/Music/两棵树_45fdb007-bcd4-485f-9a7c-4b38f8d96324_cover.jpeg \
   --title '两棵树' \
   --artist 'NeoMei' \
-  --lyrics-file ~/Music/两棵树_45fdb007-bcd4-485f-9a7c-4b38f8d96324_lyrics.txt \
-  --cover-file ~/Music/两棵树_45fdb007-bcd4-485f-9a7c-4b38f8d96324_cover.jpeg \
+  --lyrics "$(cat ~/Music/两棵树_45fdb007-bcd4-485f-9a7c-4b38f8d96324_lyrics.txt)" \
   --ai-tools Suno \
-  --music-type original
+  --music-type 原创
 ```
 
 ### 示例 2：只下载不发布
@@ -239,11 +255,12 @@ opencli suno generate-wav <clip-id-2> --output-dir ~/Music/
 for clip_id in "id1" "id2" "id3"; do
   echo "Publishing $clip_id..."
   opencli douyin-music publish \
-    --audio-file ~/Music/${clip_id}.wav \
+    --audio ~/Music/${clip_id}.wav \
+    --cover ~/Music/${clip_id}_cover.jpeg \
     --title "Song $clip_id" \
     --artist "NeoMei" \
     --ai-tools Suno \
-    --music-type original
+    --music-type 原创
 done
 ```
 
@@ -349,7 +366,7 @@ opencli suno download <clip-id> --audio-format m4a
 
 ## 关键约定
 
-- **Chrome 必须保持开启**：所有命令都通过 Chrome 桥接驱动浏览器
+- **Chrome 自动启动**：opencli 会自动启动 Chrome（有头模式），无需手动保持开启。复用默认 profile 的登录状态
 - **Suno 需要 Premier 订阅**：免费版无法生成 WAV
 - **抖音音乐需要创作者账号**：普通用户无法发布
 - **每次生成消耗 10 credits**：产出 2 个版本
@@ -362,7 +379,7 @@ opencli suno download <clip-id> --audio-format m4a
 
 如果整个工作流卡住：
 
-1. **检查 Chrome 是否开启**：`opencli doctor`
+1. **检查 opencli 状态**：`opencli doctor`（会自动启动 Chrome 如果需要）
 2. **检查登录状态**：在 Chrome 中手动访问 `suno.com` 和 `music.douyin.com`
 3. **检查订阅状态**：Suno 账户是否显示 "Premier"
 4. **检查网络**：CDN 链接是否可访问 `curl -I https://cdn1.suno.ai/<clip-id>.wav`
@@ -383,7 +400,7 @@ opencli suno generate-wav <clip-id> --output-dir ~/Music/
 opencli suno download <clip-id> --audio-format mp3|m4a|wav
 
 # 发布到抖音音乐
-opencli douyin-music publish --audio-file <path> --title '<标题>' --artist '<歌手>'
+opencli douyin-music publish --audio <path> --cover <path> --title '<标题>' --artist '<歌手>'
 
 # 列出所有歌曲
 opencli suno list --limit 20

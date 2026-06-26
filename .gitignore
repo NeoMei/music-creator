@@ -1,0 +1,21 @@
+# 第三方 / 本地工具克隆（不属于本技能，误混入时忽略）
+/opencli/
+/~/
+
+# 环境与缓存
+node_modules/
+.cache/
+*.log
+
+# 个人 / 系统 / 编辑器文件
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.env
+.env.local
+*.local
+
+# opencli 运行时本地状态（不应入库）
+.opencli/
+.openclaw/

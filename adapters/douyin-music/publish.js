@@ -169,7 +169,7 @@ async function tagUploadsByFieldId(page) {
       return {ok: true, refs};
     })()
   `;
-  return page.evaluate(js);
+  return page.evaluate(js, refBase);
 }
 
 /**
@@ -215,7 +215,7 @@ async function readUploadState(page, refBase) {
       };
     })()
   `;
-  return page.evaluate(js);
+  return page.evaluate(js, refBase);
 }
 
 /**
@@ -792,7 +792,7 @@ async function uploadFile(page, filePath, refBase, opts = {}) {
           }
         }
       }
-      if (!area) return {ok: false, error: 'area not found: ${refBase}'};
+      if (!area) return {ok: false, error: \`area not found: ${refBase}\`};
       if (area.classList.contains('douyin-music-upload-disabled')) {
         area.classList.remove('douyin-music-upload-disabled');
       }
